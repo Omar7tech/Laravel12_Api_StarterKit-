@@ -10,6 +10,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "f9webltd/laravel-api-response-helpers": "^2.1",
         "laravel/breeze": "^2.3",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
