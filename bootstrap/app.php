@@ -6,8 +6,11 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\MethodNotAllowedHttpException;
+use Symfony\Component\HttpKernel\Exception\TooManyRequestsHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -25,10 +28,15 @@ return Application::configure(basePath: dirname(__DIR__))
             'verified' => \App\Http\Middleware\EnsureEmailIsVerified::class,
         ]);
 
-        //
+        // Optional: Add throttling for API routes
+        $middleware->throttleApi();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (Throwable $exception, $request) {
+
+            if (!$request->expectsJson() && !$request->is('api/*')) {
+                return null; 
+            }
 
             $responder = new class {
                 use ApiResponseHelpers;
@@ -37,30 +45,64 @@ return Application::configure(basePath: dirname(__DIR__))
             if ($exception instanceof ValidationException) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Validation failed.',
-                    'errors' => method_exists($exception, 'errors') ? $exception->errors() : [],
+                    'message' => config('app.debug') ? $exception->getMessage() : 'Validation failed.',
+                    'errors' => $exception->errors(),
                 ], 422);
             }
 
+            // Authentication errors
             if ($exception instanceof AuthenticationException) {
-                return $responder->respondUnAuthenticated('Unauthorized.');
+                $message = config('app.debug') ? $exception->getMessage() : 'Authentication required.';
+                return $responder->respondUnAuthenticated($message);
             }
 
-            if ($exception instanceof ModelNotFoundException || $exception instanceof NotFoundHttpException) {
-                return $responder->respondNotFound($exception->getMessage());
+            // Model not found errors
+            if ($exception instanceof ModelNotFoundException) {
+                $message = config('app.debug') ? $exception->getMessage() : 'Resource not found.';
+                return $responder->respondNotFound($message);
             }
 
+            // Route not found errors
+            if ($exception instanceof NotFoundHttpException) {
+                $message = config('app.debug') ? $exception->getMessage() : 'Endpoint not found.';
+                return $responder->respondNotFound($message);
+            }
+
+            // Method not allowed errors
+            if ($exception instanceof MethodNotAllowedHttpException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => config('app.debug') ? $exception->getMessage() : 'Method not allowed.',
+                ], 405);
+            }
+
+            // Rate limiting errors
+            if ($exception instanceof TooManyRequestsHttpException) {
+                return response()->json([
+                    'success' => false,
+                    'message' => config('app.debug') ? $exception->getMessage() : 'Too many requests. Please try again later.',
+                ], 429);
+            }
+
+            // Generic HTTP exceptions
             if ($exception instanceof HttpException) {
                 return response()->json([
                     'success' => false,
-                    'message' => $exception->getMessage() ?: 'HTTP error.',
+                    'message' => config('app.debug') ? $exception->getMessage() : 'HTTP error occurred.',
                 ], $exception->getStatusCode());
             }
 
-            
-            return $responder->respondError(config('app.debug') ? $exception->getMessage() : 'Server Error.');
+            // Generic server errors
+            $message = config('app.debug')
+                ? $exception->getMessage()
+                : 'An unexpected error occurred.';
 
-
-
+            return $responder->respondError($message);
         });
-    })->create();
+
+        // Optional: Report exceptions to logging service
+        $exceptions->reportable(function (Throwable $e) {
+            // Custom reporting logic here if needed
+        });
+    })
+    ->create();
