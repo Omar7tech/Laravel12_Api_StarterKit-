@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\LoginRequest;
+use F9Web\ApiResponseHelpers;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 
 class AuthenticatedSessionController extends Controller
 {
+    use ApiResponseHelpers;
     /**
      * Handle an incoming authentication request.
      */
@@ -27,11 +29,19 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        return response()->json([
+        /* return response()->json([
             'access_token' => $token,
             'token_type' => 'Bearer',
             'user' => $user,
             'status' => 'Login successful',
+        ]); */
+
+        return $this->respondWithSuccess([
+            'access_token' => $token,
+            'token_type' => 'Bearer',
+            'user' => $user,
+            'status' => 'Login successful',
+            'login_date' => date('Y-m-d H:i:s'),
         ]);
     }
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use F9Web\ApiResponseHelpers;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -13,6 +14,8 @@ use Illuminate\Validation\Rules;
 
 class RegisteredUserController extends Controller
 {
+
+    use ApiResponseHelpers;
     /**
      * Handle an incoming registration request.
      *
@@ -36,7 +39,7 @@ class RegisteredUserController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        return response()->json([
+        return $this->respondWithSuccess([
             'access_token' => $token,
             'token_type' => 'Bearer',
             'user' => $user
